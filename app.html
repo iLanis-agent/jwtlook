@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JwtLook - read a JWT without sending it anywhere</title>
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; background:#101b15; color:#f3ede6; line-height:1.5; }
+  .wrap { max-width:700px; margin:0 auto; padding:26px 16px 50px; }
+  h1 { font-size:28px; } h1 span { color:#7ee0a8; }
+  .sub { color:#b5aa9c; margin:6px 0 16px; }
+  .card { background:#1a2b21; border-radius:14px; padding:14px; margin-bottom:12px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:10px; }
+  label { font-size:12px; color:#b5aa9c; display:block; margin-bottom:3px; }
+  input,select { width:100%; background:#101b15; color:#f3ede6; border:1px solid #574f48; border-radius:8px; padding:8px; font-size:15px; font-family:inherit; }
+  button { background:#25583c; color:#f3ede6; border:0; padding:8px 14px; border-radius:8px; cursor:pointer; font-size:14px; margin-right:6px; margin-top:10px; }
+  table { width:100%; border-collapse:collapse; } td,th { text-align:left; padding:8px 4px; border-bottom:1px solid #433c36; } th { font-size:12px; color:#b5aa9c; font-weight:600; }
+  td.v { font-size:22px; font-weight:800; color:#7ee0a8; } tr.me td.v { color:#f3ede6; }
+  .stats { display:flex; gap:22px; flex-wrap:wrap; margin-top:12px; } .stats b { display:block; font-size:20px; } .muted { color:#b5aa9c; font-size:13px; }
+  .err { color:#ff9c8a; } .note { font-size:12.5px; color:#8c8174; margin-top:6px; }
+
+  td.v { font-size:17px; } td, th { font-size:14px; } .bar { height:10px; background:#101b15; border-radius:6px; overflow:hidden; margin-top:6px; } .bar i { display:block; height:100%; background:#7ee0a8; } .bar i.over { background:#ff7b72; } .no { color:#ff9c8a; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Jwt<span>Look</span></h1>
+  <div class="sub">Paste a JSON Web Token. Read it, check its dates and optionally check its HMAC signature. Nothing leaves this page.</div>
+  <div class="card">
+    <label>Token</label>
+    <textarea id="tok" rows="4" style="width:100%;box-sizing:border-box;background:#101b15;color:#e8eee9;border:1px solid #25583c;border-radius:8px;padding:8px;font-family:monospace;font-size:13px"></textarea>
+    <div class="grid" style="margin-top:8px">
+      <div><label>Clock leeway (seconds)</label><input id="leeway" value="0"></div>
+      <div><label>HMAC secret (HS256/384/512, optional)</label><input id="secret" value="" autocomplete="off"></div>
+      <div><label>Secret is encoded as</label><select id="enc"><option value="text">plain text</option><option value="b64u">base64url</option></select></div>
+    </div>
+    <button id="s1">RFC 7519 example (HS256)</button><button id="s2">RFC 7519 unsecured (alg none)</button><button id="s3">Clear</button>
+  </div>
+  <div class="card" id="out"></div>
+  <div class="note"><b>Decoded is not verified.</b> Anyone can write a JWT with any claims. Only a signature check with the right key tells you the token is genuine, and your server must do that, not this page. Format per RFC 7519 (JWT) and RFC 7515 (JWS): three base64url parts, header, payload and signature. "exp", "nbf" and "iat" are seconds since 1970 (NumericDate); "exp" is the first instant the token must be rejected, and RFC 7519 allows a small leeway for clock skew. The first sample is the RFC 7519 section 3.1 token, its secret is the RFC 7515 appendix A.1 key (base64url) so you can see a valid signature: pick "base64url" and paste AyM1SysPpbyDfgZld3umj1qzKObwVMkoqQ-EstJQLr_T-1qS0gZH75aKtMN3Yj0iPS4hcgUuTwjAzZr1Z9CAow. This page checks HMAC algorithms only; RS256, ES256 and others need a public key and are not checked. Encrypted tokens (5 parts) cannot be read. Do not paste live production secrets into any website you do not trust: this page runs offline in your browser and stores nothing, but the habit is worth keeping.</div>
+</div>
+<script src="engine.js"></script>
+<script>
+(function () {
+  var J = window.JwtLook, $ = function (i) { return document.getElementById(i); };
+  var RFC = 'eyJ0eXAiOiJKV1QiLA0KICJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk';
+  var UNS = 'eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.';
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;'); }
+  var seq = 0;
+  function render() {
+    var my = ++seq, d = J.decode($('tok').value);
+    if (d.error) { $('out').innerHTML = $('tok').value.trim() === '' ? '<div class="muted">Paste a token or try a sample.</div>' : '<div class="err">' + esc(d.error) + '</div>'; return; }
+    var now = Math.floor(Date.now() / 1000), lee = parseFloat($('leeway').value) || 0;
+    var checks = J.check(d, now, lee);
+    var ann = '';
+    ['iat', 'nbf', 'exp'].forEach(function (k) { if (typeof d.claims[k] === 'number') ann += '<tr><td>' + k + '</td><td class="v">' + J.iso(d.claims[k]) + '</td></tr>'; });
+    var cls = { ok: '', bad: 'no', warn: '', info: 'muted' };
+    var ch = checks.map(function (c) { return '<div class="' + cls[c.level] + '" style="margin-top:4px">' + { ok: 'OK: ', bad: 'Problem: ', warn: 'Note: ', info: '' }[c.level] + esc(c.text) + '</div>'; }).join('');
+    var pre = 'style="background:#101b15;border-radius:8px;padding:8px;overflow:auto;font-size:13px;margin:4px 0 10px"';
+    $('out').innerHTML = '<div class="muted">Header</div><pre ' + pre + '>' + esc(JSON.stringify(d.header, null, 2)) + '</pre><div class="muted">Payload</div><pre ' + pre + '>' + esc(JSON.stringify(d.claims, null, 2)) + '</pre>' + (ann ? '<table><tr><th>Time claim</th><th>UTC</th></tr>' + ann + '</table>' : '') + '<div style="margin-top:8px">' + ch + '</div><div id="ver" style="margin-top:8px"></div>';
+    var sec = $('secret').value;
+    if (sec !== '') {
+      var bytes = $('enc').value === 'b64u' ? J.b64uToBytes(sec.trim()) : new TextEncoder().encode(sec);
+      if (!bytes) { $('ver').innerHTML = '<span class="no">The secret is not valid base64url.</span>'; return; }
+      J.verifyHmac(d, bytes).then(function (r) {
+        if (my !== seq) return;
+        $('ver').innerHTML = !r.supported ? '<span class="muted">' + esc(r.reason) + '</span>' : r.valid ? '<b>Signature matches this secret.</b> The token was signed with it and has not been changed.' : '<span class="no"><b>Signature does not match this secret.</b></span> Wrong secret, or the token was changed.';
+      });
+    } else $('ver').innerHTML = '<span class="muted">Add a secret to check an HMAC signature.</span>';
+  }
+  ['tok', 'leeway', 'secret'].forEach(function (i) { $(i).oninput = render; }); $('enc').onchange = render;
+  $('s1').onclick = function () { $('tok').value = RFC; $('secret').value = ''; render(); };
+  $('s2').onclick = function () { $('tok').value = UNS; render(); };
+  $('s3').onclick = function () { $('tok').value = ''; $('secret').value = ''; render(); };
+  $('tok').value = RFC; render();
+})();
+</script>
+</body>
+</html>
