@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JwtLook - read a JWT without sending it anywhere</title>
+<meta name="description" content="Decode a JWT in your browser, check its dates and optionally verify an HMAC signature. Nothing is uploaded.">
+<style>
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif; background:#101b15; color:#f3ede6; line-height:1.6; }
+  .wrap { max-width:680px; margin:0 auto; padding:48px 20px 60px; }
+  .logo { font-size:46px; font-weight:800; } .logo span { color:#7ee0a8; }
+  .tag { font-size:19px; margin-top:10px; color:#ded5ca; }
+  .cta { display:inline-block; margin-top:26px; background:#7ee0a8; color:#101b15; font-weight:700; padding:14px 30px; border-radius:12px; text-decoration:none; }
+  h2 { font-size:21px; margin:40px 0 10px; } li { color:#b9aea1; margin-bottom:8px; } ul { margin-left:20px; }
+  .demo { margin-top:26px; background:#1a2b21; border-radius:14px; padding:18px; } .demo b { color:#7ee0a8; }
+  footer { margin-top:50px; font-size:13px; color:#8c8174; } a { color:#7ee0a8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">Jwt<span>Look</span></div>
+  <div class="tag">Pasting a token into a random website is how tokens leak. This one never uploads it.</div>
+  <a class="cta" href="app.html">Open the app</a>
+  <div class="demo">The RFC 7519 example token: issuer <b>joe</b>, expired <b>2011-03-22 18:43 UTC</b>, signed with HS256. Paste the RFC key and the signature checks out.</div>
+  <h2>What it does</h2>
+  <ul><li>Header and payload, readable, with time claims as UTC dates</li><li>Expired, not-yet-valid and missing-expiry checks, with clock leeway</li><li>Flags for alg none, empty signatures and wrongly typed claims</li><li>Optional HS256, HS384 and HS512 signature check, locally</li></ul>
+  <footer>Decoded is not verified: your server must check the signature. Only HMAC algorithms are checked here. Static, client-side, nothing stored or uploaded. <a href="https://github.com/iLanis-agent/jwtlook">Source</a></footer>
+</div>
+</body>
+</html>
